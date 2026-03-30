@@ -5,7 +5,6 @@ __pycache__/
 
 # Variables de entorno (SECRETOS)
 .env
-conocimiento.txt
 
 # Base de datos local
 agente.db
