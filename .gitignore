@@ -1,0 +1,15 @@
+# Entorno virtual
+venv/
+__pycache__/
+*.pyc
+
+# Variables de entorno (SECRETOS)
+.env
+conocimiento.txt
+
+# Base de datos local
+agente.db
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
