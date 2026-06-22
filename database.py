@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 # funcion para conectar/crear la base de datos
 def inicializar_db():
@@ -6,16 +7,29 @@ def inicializar_db():
     conn = sqlite3.connect('agente.db')
     cursor = conn.cursor()
     
-    # creamos una tabla para prospectos (Leads)
+    # creamos una tabla para prospectos (Leads) y control de timpo
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             telefono TEXT UNIQUE,
             ultimo_mensaje TEXT,
+            estado TEXT DEFAULT 'bot',
+            timestamp_manual REAL DEFAULT 0,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
+    # Migración segura por si tu base de datos ya existía en Render
+    try:
+        cursor.execute("ALTER TABLE leads ADD COLUMN estado TEXT DEFAULT 'bot'")
+    except sqlite3.OperationalError:
+        pass # La columna ya existía
+        
+    try:
+        cursor.execute("ALTER TABLE leads ADD COLUMN timestamp_manual REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass # La columna ya existía
+
     conn.commit()
     conn.close()
     print("🗄️ Base de datos lista.")
@@ -34,6 +48,38 @@ def guardar_lead(telefono, mensaje):
     conn.commit()
     conn.close()
 
+def activar_modo_manual(telefono):
+    conn = sqlite3.connect('agente.db')
+    cursor = conn.cursor()
+    # Guardamos el estado 'manual' y el tiempo exacto en segundos
+    cursor.execute('''
+        UPDATE leads 
+        SET estado = 'manual', timestamp_manual = ? 
+        WHERE telefono = ?
+    ''', (time.time(), telefono))
+    conn.commit()
+    conn.close()
+
+def activar_modo_bot(telefono):
+    conn = sqlite3.connect('agente.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE leads SET estado = 'bot', timestamp_manual = 0 WHERE telefono = ?
+    ''', (telefono,))
+    conn.commit()
+    conn.close()
+
+def obtener_control_chat(telefono):
+    conn = sqlite3.connect('agente.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT estado, timestamp_manual FROM leads WHERE telefono = ?', (telefono,))
+    resultado = cursor.fetchone()
+    conn.close()
+    
+    if resultado:
+        return {"estado": resultado[0], "timestamp_manual": resultado[1]}
+    return {"estado": "bot", "timestamp_manual": 0}
+    
 # si ejecutas este archivo solo, crea la DB
 if __name__ == "__main__":
     inicializar_db()

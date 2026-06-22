@@ -2,9 +2,9 @@ import os
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 # importamos la funcion de tu otro archivo
-from database import guardar_lead, inicializar_db
+from database import guardar_lead, inicializar_db, activar_modo_manual, activar_modo_bot, obtener_control_chat
 from ia import consultar_agente # El cerebro que creamos antes
-from enviar_mensaje import enviar_texto_whatsapp, enviar_imagen_whatsapp, avisar_a_jhon
+from enviar_mensaje import enviar_texto_whatsapp, enviar_imagen_whatsapp # avisar_a_jhon
 
 # cargamos variables de entorno 
 load_dotenv()
@@ -56,23 +56,44 @@ def webhook_receiver():
             
                 # 1. guardar en DB
                 guardar_lead(telefono, texto_usuario)
-            
+
+                # 2. Verificar el control de estado de este cliente específico
+                control = obtener_control_chat(telefono)
+
+                if control["estado"] == "manual":
+                    # Comando de rescate manual inmediato por si quieres encenderlo antes
+                    if texto_usuario.strip() == ".activarbot":
+                        activar_modo_bot(telefono)
+                        enviar_texto_whatsapp(telefono, "🤖 Asistente de IA reactivado.")
+                        print(f"🔄 Bot reactivado manualmente para {telefono}")
+                    else:
+                        # Verificación del temporizador: 5 minutos = 300 segundos
+                        tiempo_transcurrido = time.time() - control["timestamp_manual"]
+                        if tiempo_transcurrido > 300:
+                            print(f"⏰ Tiempo de espera agotado (5 min) para {telefono}. El bot retoma el control.")
+                            activar_modo_bot(telefono)
+                            # Al romper el ciclo, permitimos que el código continúe hacia la IA abajo
+                        else:
+                            print(f"🤫 {telefono} está en tiempo de Operador Humano ({int(300 - tiempo_transcurrido)}s restantes). IA ignora.")
+                            return jsonify({"status": "ok"}), 200
+
                 # 2. consultar a la IA
                 # responder al cliente
-                respuesta_ia = consultar_agente(texto_usuario)
-            
-                # 3. Enviar respuesta de texto por WhatsApp
+                respuesta_ia = consultar_agente(texto_usuario) 
+                # 3. Enviar respuesta de texto por WhatsApp con IA
                 enviar_texto_whatsapp(telefono, respuesta_ia)
 
-                # 4. LOGICA DE PAGO (Si el cliente quiere pagar)
-                palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar"]
+                # 4. Monitorear palabras clave para realizar la pausa automática
+                palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
                 if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
                     # enviar imagen del QR
                     url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
                     enviar_imagen_whatsapp(telefono, url_qr)
                     
-                    avisar_a_jhon(telefono, texto_usuario)
-                    #print(f" Alerta de pago enviada al Ing. Jhon")
+                    # avisar_a_jhon(telefono, texto_usuario)
+                    # Activamos el freno de mano temporal por 5 minutos para este número
+                    activar_modo_manual(telefono)
+                    print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado para Jhon.")
 
     except Exception as e:
         # si no es un mensaje de texto, simplemente lo ignoramos por ahora
