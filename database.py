@@ -40,8 +40,8 @@ def guardar_lead(telefono, mensaje):
     
     # insertamos o actualizamos si ya existe el numero
     cursor.execute('''
-        INSERT INTO leads (telefono, ultimo_mensaje) 
-        VALUES (?, ?)
+        INSERT INTO leads (telefono, ultimo_mensaje, estado, timestamp_manual)
+        VALUES (?, ?, 'bot', 0)
         ON CONFLICT(telefono) DO UPDATE SET ultimo_mensaje = excluded.ultimo_mensaje
     ''', (telefono, mensaje))
     

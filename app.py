@@ -1,4 +1,5 @@
 import os
+import time
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 # importamos la funcion de tu otro archivo
@@ -38,68 +39,90 @@ def webhook_verification():
 @app.route('/webhook', methods=['POST'])
 def webhook_receiver():
     data = request.get_json()
+
+    #para tiledesk
+    texto_usuario = None
+    telefono = None
+    es_tiledesk = False
     
     # PROCESAMIENTO DEL MENSAJE 
     try:
-        # extraemos la entrada de mensaje
-        entry = data.get('entry', [{}])[0]
-        changes = entry.get('changes', [{}])[0]
-        value = changes.get('value', {})
+        # 1. EXTRACCIÓN DE DATOS SEGÚN EL ORIGEN
+        if data and 'payload' in data:
+            # Origen: Tiledesk
+            es_tiledesk = True
+            payload = data.get('payload', {})
+            texto_usuario = payload.get('text', '')
+            telefono = payload.get('sender', 'usuario_tiledesk')
+        else:
+            # extraemos la entrada de mensaje
+            #meta directo
+            entry = data.get('entry', [{}])[0]
+            changes = entry.get('changes', [{}])[0]
+            value = changes.get('value', {})
 
-        if 'messages' in value:
-            mensaje_obj = value['messages'][0]
-            telefono = mensaje_obj['from']
+            if 'messages' in value:
+                mensaje_obj = value['messages'][0]
+                telefono = mensaje_obj['from']
+                if mensaje_obj.get('type') == 'text':
+                    texto_usuario = mensaje_obj['text']['body']
 
-            # solo procesamos si es un mensaje de texto
-            if mensaje_obj.get('type') == 'text':
-                texto_usuario = mensaje_obj['text']['body']
-            
-                # 1. guardar en DB
-                guardar_lead(telefono, texto_usuario)
+        # Si no se detectó ningún texto válido, terminamos temprano de forma segura
+        if not texto_usuario:
+            return jsonify({"status": "no_text"}), 200
 
-                # 2. Verificar el control de estado de este cliente específico
-                control = obtener_control_chat(telefono)
+        # 2. LÓGICA DE NEGOCIO UNIFICADA (Ejecutada una sola vez)
+        guardar_lead(telefono, texto_usuario)
+        control = obtener_control_chat(telefono)
 
-                if control["estado"] == "manual":
-                    # Comando de rescate manual inmediato por si quieres encenderlo antes
-                    if texto_usuario.strip() == ".activarbot":
-                        activar_modo_bot(telefono)
-                        enviar_texto_whatsapp(telefono, "🤖 Asistente de IA reactivado.")
-                        print(f"🔄 Bot reactivado manualmente para {telefono}")
-                    else:
-                        # Verificación del temporizador: 5 minutos = 300 segundos
-                        tiempo_transcurrido = time.time() - control["timestamp_manual"]
-                        if tiempo_transcurrido > 300:
-                            print(f"⏰ Tiempo de espera agotado (5 min) para {telefono}. El bot retoma el control.")
-                            activar_modo_bot(telefono)
-                            # Al romper el ciclo, permitimos que el código continúe hacia la IA abajo
-                        else:
-                            print(f"🤫 {telefono} está en tiempo de Operador Humano ({int(300 - tiempo_transcurrido)}s restantes). IA ignora.")
-                            return jsonify({"status": "ok"}), 200
+        if control["estado"] == "manual":
+            # Comando de rescate manual inmediato por si quieres encenderlo antes
+            if texto_usuario.strip() == ".activarbot":
+                activar_modo_bot(telefono)
+                if not es_tiledesk:
+                    enviar_texto_whatsapp(telefono, "🤖 Asistente de IA reactivado.")
+            else:
+                # Verificación del temporizador: 5 minutos = 300 segundos
+                tiempo_transcurrido = time.time() - control["timestamp_manual"]
+                if tiempo_transcurrido > 300:
+                    print(f"⏰ Tiempo de espera agotado (5 min) para {telefono}. El bot retoma el control.")
+                    activar_modo_bot(telefono)
+                    # Al romper el ciclo, permitimos que el código continúe hacia la IA abajo
+                else:
+                    print(f"🤫 {telefono} está en tiempo de Operador Humano ({int(300 - tiempo_transcurrido)}s restantes). IA ignora.")
+                    # Si está en modo manual, respondemos un OK silencioso al webhook
+                    return jsonify({"text": ""}) if es_tiledesk else jsonify({"status": "ok"}), 200
 
-                # 2. consultar a la IA
-                # responder al cliente
-                respuesta_ia = consultar_agente(texto_usuario) 
-                # 3. Enviar respuesta de texto por WhatsApp con IA
-                enviar_texto_whatsapp(telefono, respuesta_ia)
+            # 2. consultar a la IA responder al cliente
+            respuesta_ia = consultar_agente(texto_usuario) 
+            # 3. Enviar respuesta de texto por WhatsApp con IA
+            #enviar_texto_whatsapp(telefono, respuesta_ia)
 
-                # 4. Monitorear palabras clave para realizar la pausa automática
-                palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
-                if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
-                    # enviar imagen del QR
-                    url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
-                    enviar_imagen_whatsapp(telefono, url_qr)
-                    
-                    # avisar_a_jhon(telefono, texto_usuario)
-                    # Activamos el freno de mano temporal por 5 minutos para este número
-                    activar_modo_manual(telefono)
-                    print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado para Jhon.")
+            # 4. Monitorear palabras clave para realizar la pausa automática
+            palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
+            if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
+                # enviar imagen del QR
+                url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
+                enviar_imagen_whatsapp(telefono, url_qr)
+                # avisar_a_jhon(telefono, texto_usuario)
+                # Activamos el freno de mano temporal por 5 minutos para este número
+                activar_modo_manual(telefono)
+                print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado para Jhon.")
+
+            # 3. RESPUESTA SEGÚN EL CANAL ACTIVO
+        if es_tiledesk:
+            # 👉 Tiledesk: Espera que la respuesta de la IA vaya directamente en el retorno HTTP
+            return jsonify({"text": respuesta_ia}), 200
+        else:
+            # 👉 Meta Directo: Usa la API externa de WhatsApp y responde un estado 200 a Meta
+            enviar_texto_whatsapp(telefono, respuesta_ia)
+            return jsonify({"status": "ok"}), 200
 
     except Exception as e:
         # si no es un mensaje de texto, simplemente lo ignoramos por ahora
         print(f"Error procesando webhook: {e}")
+        return jsonify({"error": str(e)}), 500
     
-    return jsonify({"status": "ok"}), 200
 
 # punto de entrada de la aplicacion (como el main en otros lenguajes)
 if __name__ == '__main__':
