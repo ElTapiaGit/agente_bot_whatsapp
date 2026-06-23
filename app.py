@@ -66,6 +66,9 @@ def webhook_receiver():
             return jsonify({"status": "no_text"}), 200
 
         # 2. LÓGICA DE NEGOCIO UNIFICADA
+        control_previo = obtener_control_chat(telefono)
+        es_continuacion = control_previo["existe"]
+
         guardar_lead(telefono, texto_usuario)
         control = obtener_control_chat(telefono)
 
@@ -84,7 +87,7 @@ def webhook_receiver():
                     return jsonify({"text": ""}) if es_tiledesk else jsonify({"status": "ok"}), 200
 
         # 3. CONSULTAR A LA IA (Alineado correctamente a 8 espacios para acceso global)
-        respuesta_ia = consultar_agente(texto_usuario) 
+        respuesta_ia = consultar_agente(texto_usuario, es_continuacion=es_continuacion)
 
         # 4. Monitorear palabras clave para realizar la pausa automática
         palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]

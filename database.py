@@ -77,8 +77,8 @@ def obtener_control_chat(telefono):
     conn.close()
     
     if resultado:
-        return {"estado": resultado[0], "timestamp_manual": resultado[1]}
-    return {"estado": "bot", "timestamp_manual": 0}
+        return {"estado": resultado[0], "timestamp_manual": resultado[1], "existe": True}
+    return {"estado": "bot", "timestamp_manual": 0, "existe": False}
     
 # si ejecutas este archivo solo, crea la DB
 if __name__ == "__main__":
