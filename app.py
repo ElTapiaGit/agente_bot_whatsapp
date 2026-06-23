@@ -93,21 +93,21 @@ def webhook_receiver():
                     # Si está en modo manual, respondemos un OK silencioso al webhook
                     return jsonify({"text": ""}) if es_tiledesk else jsonify({"status": "ok"}), 200
 
-            # 2. consultar a la IA responder al cliente
-            respuesta_ia = consultar_agente(texto_usuario) 
-            # 3. Enviar respuesta de texto por WhatsApp con IA
-            #enviar_texto_whatsapp(telefono, respuesta_ia)
+        # 2. consultar a la IA responder al cliente
+        respuesta_ia = consultar_agente(texto_usuario) 
+        # 3. Enviar respuesta de texto por WhatsApp con IA
+        #enviar_texto_whatsapp(telefono, respuesta_ia)
 
-            # 4. Monitorear palabras clave para realizar la pausa automática
-            palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
-            if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
-                # enviar imagen del QR
-                url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
-                enviar_imagen_whatsapp(telefono, url_qr)
-                # avisar_a_jhon(telefono, texto_usuario)
-                # Activamos el freno de mano temporal por 5 minutos para este número
-                activar_modo_manual(telefono)
-                print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado para Jhon.")
+        # 4. Monitorear palabras clave para realizar la pausa automática
+        palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
+        if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
+            # enviar imagen del QR
+            url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
+            enviar_imagen_whatsapp(telefono, url_qr)
+            # avisar_a_jhon(telefono, texto_usuario)
+            # Activamos el freno de mano temporal por 5 minutos para este número
+            activar_modo_manual(telefono)
+            print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado para Jhon.")
 
             # 3. RESPUESTA SEGÚN EL CANAL ACTIVO
         if es_tiledesk:
@@ -122,7 +122,6 @@ def webhook_receiver():
         # si no es un mensaje de texto, simplemente lo ignoramos por ahora
         print(f"Error procesando webhook: {e}")
         return jsonify({"error": str(e)}), 500
-    
 
 # punto de entrada de la aplicacion (como el main en otros lenguajes)
 if __name__ == '__main__':
