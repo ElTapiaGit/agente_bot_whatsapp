@@ -1,5 +1,5 @@
 from openai import OpenAI
-from lector_conocimiento import obtener_conocimiento # importamos el lector que revisa conocimiento.txt
+from lector_conocimiento import obtener_conocimiento # importamos el lector que revisa conocimiento.mb
 import os
 from dotenv import load_dotenv
 

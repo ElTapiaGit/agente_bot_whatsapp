@@ -1,15 +1,18 @@
+import os
+
 def obtener_conocimiento():
-    # 'r' significa modo lectura (read)
-    # encoding='utf-8' es vital para que reconozca tildes y la 'ñ'
     try:
-        with open('conocimiento.txt', 'r', encoding='utf-8') as archivo:
+        # Resolvemos la ruta absoluta de forma dinámica
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ruta_archivo = os.path.join(base_dir, 'conocimiento.md')
+        
+        with open(ruta_archivo, 'r', encoding='utf-8') as archivo:
             contenido = archivo.read()
             return contenido
     except FileNotFoundError:
-        print("❌ Error: No se encontró el archivo conocimiento.txt")
+        print("❌ Error: No se encontró el archivo conocimiento.md en la ruta del servidor.")
         return ""
 
-# Prueba rápida para ver si lee bien
 if __name__ == "__main__":
     print("--- Contenido del archivo ---")
     print(obtener_conocimiento())
