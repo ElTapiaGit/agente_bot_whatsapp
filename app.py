@@ -70,33 +70,19 @@ def webhook_receiver():
         es_continuacion = control_previo["existe"]
 
         guardar_lead(telefono, texto_usuario)
-        control = obtener_control_chat(telefono)
-
-        if control["estado"] == "manual":
-            if texto_usuario.strip() == ".activarbot":
-                activar_modo_bot(telefono)
-                if not es_tiledesk:
-                    enviar_texto_whatsapp(telefono, "🤖 Asistente de IA reactivado.")
-            else:
-                tiempo_transcurrido = time.time() - control["timestamp_manual"]
-                if tiempo_transcurrido > 300:
-                    print(f"⏰ Tiempo de espera agotado (5 min) para {telefono}. El bot retoma el control.")
-                    activar_modo_bot(telefono)
-                else:
-                    print(f"🤫 {telefono} está en tiempo de Operador Humano ({int(300 - tiempo_transcurrido)}s restantes). IA ignora.")
-                    return jsonify({"text": ""}) if es_tiledesk else jsonify({"status": "ok"}), 200
-
+        # control = obtener_control_chat(telefono)
+        
         # 3. CONSULTAR A LA IA (Alineado correctamente a 8 espacios para acceso global)
         respuesta_ia = consultar_agente(texto_usuario, es_continuacion=es_continuacion)
 
-        # 4. Monitorear palabras clave para realizar la pausa automática
-        palabras_pago = ["pagar", "precio", "qr", "cuenta", "comprar", "transferencia", "pago"]
-        if any(palabra in texto_usuario.lower() for palabra in palabras_pago):
+        # 4. Envio del QR sin pausas
+        # Solo se activa si el cliente pide explícitamente el QR o confirma que va a pagar
+        palabras_pago_reales = ["enviar qr", "pasa el qr", "pasame el qr", "quiero pagar", "proceder al pago", "dame el qr"]
+        if any(frase in texto_usuario.lower() for frase in palabras_pago_reales):
             url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
             enviar_imagen_whatsapp(telefono, url_qr)
-            activar_modo_manual(telefono)
-            print(f"🛑 Chat de {telefono} congelado. Temporizador de 5 minutos iniciado.")
-
+            print(f"📸 QR Simulado enviado a {telefono}. El bot sigue activo (No hay pausa).")
+            
         # 5. RESPUESTA SEGÚN EL CANAL ACTIVO
         if es_tiledesk:
             return jsonify({"text": respuesta_ia}), 200
