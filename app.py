@@ -48,7 +48,17 @@ def webhook_receiver():
             es_tiledesk = True
             payload = data.get('payload', {})
             texto_usuario = payload.get('text', '')
-            telefono = payload.get('sender', 'usuario_tiledesk')
+
+            # Extracción nativa del teléfono real oculto en el Lead de Tiledesk
+            request_obj = payload.get('request', {})
+            lead_obj = request_obj.get('lead', {})
+            telefono_real = lead_obj.get('phone', '')
+            
+            if telefono_real:
+                # Limpiamos el '+' si es que Tiledesk lo envía con formato internacional
+                telefono = telefono_real.replace('+', '').strip()
+            else:
+                telefono = payload.get('sender', 'usuario_tiledesk')
         else:
             # Origen: Meta directo
             entry = data.get('entry', [{}])[0]
@@ -83,15 +93,11 @@ def webhook_receiver():
             #enviar_imagen_whatsapp(telefono, url_qr)
             #print(f"📸 QR Simulado enviado a {telefono}. El bot sigue activo (No hay pausa).")
             
-            if es_tiledesk:
-                # Usamos la micro-lengua nativa de Tiledesk para meter la imagen en el widget {{result.text}}
-                respuesta_ia += f"\n\nimage:{url_qr}"
-                print(f"📸 QR incrustado exitosamente en el payload de Tiledesk para {telefono}")
-            else:
-                # Fallback seguro si la petición entra directo desde Meta con un número real
-                if telefono and telefono.isdigit():
-                    enviar_imagen_whatsapp(telefono, url_qr)
-
+            # Si logramos extraer un número real de WhatsApp, Meta dispara la imagen directo al celular
+            if telefono and telefono.isdigit():
+                enviar_imagen_whatsapp(telefono, url_qr)
+                print(f"📸 QR Real enviado vía Meta al número verificado: {telefono}")
+            
         # 5. RESPUESTA SEGÚN EL CANAL ACTIVO
         if es_tiledesk:
             return jsonify({"text": respuesta_ia}), 200
