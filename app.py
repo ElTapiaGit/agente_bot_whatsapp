@@ -79,10 +79,19 @@ def webhook_receiver():
         # Solo se activa si el cliente pide explícitamente el QR o confirma que va a pagar
         palabras_pago_reales = ["enviar qr", "pasa el qr", "pasame el qr", "quiero pagar", "proceder al pago", "dame el qr"]
         if any(frase in texto_usuario.lower() for frase in palabras_pago_reales):
-            url_qr = os.getenv("URL_QR_PAGO", "https://lighten.imageonline.co/image.jpg") 
-            enviar_imagen_whatsapp(telefono, url_qr)
-            print(f"📸 QR Simulado enviado a {telefono}. El bot sigue activo (No hay pausa).")
+            url_qr = os.getenv("URL_QR_PAGO", "https://wquvhnrnlsxqbobyvewh.supabase.co/storage/v1/object/public/store_logos/qr/qr-simulation.jpg") 
+            #enviar_imagen_whatsapp(telefono, url_qr)
+            #print(f"📸 QR Simulado enviado a {telefono}. El bot sigue activo (No hay pausa).")
             
+            if es_tiledesk:
+                # Usamos la micro-lengua nativa de Tiledesk para meter la imagen en el widget {{result.text}}
+                respuesta_ia += f"\n\nimage:{url_qr}"
+                print(f"📸 QR incrustado exitosamente en el payload de Tiledesk para {telefono}")
+            else:
+                # Fallback seguro si la petición entra directo desde Meta con un número real
+                if telefono and telefono.isdigit():
+                    enviar_imagen_whatsapp(telefono, url_qr)
+
         # 5. RESPUESTA SEGÚN EL CANAL ACTIVO
         if es_tiledesk:
             return jsonify({"text": respuesta_ia}), 200
