@@ -55,8 +55,8 @@ def webhook_receiver():
             telefono_real = lead_obj.get('phone', '')
             
             if telefono_real:
-                # Limpiamos el '+' si es que Tiledesk lo envía con formato internacional
-                telefono = telefono_real.replace('+', '').strip()
+                # Extrae solo los números, eliminando '+', espacios o guiones
+                telefono = "".join(char for char in telefono_real if char.isdigit())
             else:
                 telefono = payload.get('sender', 'usuario_tiledesk')
         else:
@@ -98,7 +98,7 @@ def webhook_receiver():
                 enviar_imagen_whatsapp(telefono, url_qr)
                 print(f"📸 QR Real enviado vía Meta al número verificado: {telefono}")
             
-        # 5. RESPUESTA SEGÚN EL CANAL ACTIVO
+        # 5. RESPUESTA SEGÚN EL CANAL ACTIVO (Texto limpio para tu componente de Tiledesk)
         if es_tiledesk:
             return jsonify({"text": respuesta_ia}), 200
         else:
