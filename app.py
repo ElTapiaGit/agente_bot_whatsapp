@@ -49,9 +49,9 @@ def webhook_receiver():
             payload = data.get('payload', {})
             texto_usuario = payload.get('text', '')
 
-            # EXTRACCIÓN MULTI-CAPA DE SEGURIDAD PARA EL TELÉFONO
-            request_obj = payload.get('request', {})
-            lead_obj = request_obj.get('lead', {})
+            # EXTRACCIÓN JERARQUICA MULTI-CAPA DE SEGURIDAD PARA EL TELÉFONO
+            request_obj = data.get('request', {})
+            lead_obj = data.get('lead', {}) or request_obj.get('lead', {})
             
             # Purgamos y extraemos ESTRICTAMENTE los dígitos de cualquier rincón del JSON de Tiledesk
             digits_lead = "".join(c for c in str(lead_obj.get('phone', '')) if c.isdigit())
@@ -61,10 +61,10 @@ def webhook_receiver():
             # Validamos cuál de las tres fuentes capturó el número real de WhatsApp (mínimo 8 dígitos)
             if len(digits_lead) >= 8:
                 telefono = digits_lead
-            elif len(digits_sender) >= 8:
-                telefono = digits_sender
             elif len(digits_requester) >= 8:
                 telefono = digits_requester
+            elif len(digits_sender) >= 8:
+                telefono = digits_sender
             else:
                 telefono = "usuario_tiledesk"
         else:
@@ -88,7 +88,6 @@ def webhook_receiver():
         es_continuacion = control_previo["existe"]
 
         guardar_lead(telefono, texto_usuario)
-        # control = obtener_control_chat(telefono)
         
         # 3. CONSULTAR A LA IA (Alineado correctamente a 8 espacios para acceso global)
         respuesta_ia = consultar_agente(texto_usuario, es_continuacion=es_continuacion)
@@ -102,10 +101,10 @@ def webhook_receiver():
             #print(f"📸 QR Simulado enviado a {telefono}. El bot sigue activo (No hay pausa).")
             
             # Si logramos extraer un número real de WhatsApp, Meta dispara la imagen directo al celular
-            if telefono and telefono.isdigit():
+            if telefono and telefono.isdigit() and telefono != "usuario_tiledesk":
                 enviar_imagen_whatsapp(telefono, url_qr)
                 print(f"📸 QR Real enviado vía Meta al número verificado: {telefono}")
-            
+                
         # 5. RESPUESTA SEGÚN EL CANAL ACTIVO (Texto limpio para tu componente de Tiledesk)
         if es_tiledesk:
             return jsonify({"text": respuesta_ia}), 200
