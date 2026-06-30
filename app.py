@@ -49,16 +49,24 @@ def webhook_receiver():
             payload = data.get('payload', {})
             texto_usuario = payload.get('text', '')
 
-            # Extracción nativa del teléfono real oculto en el Lead de Tiledesk
+            # EXTRACCIÓN MULTI-CAPA DE SEGURIDAD PARA EL TELÉFONO
             request_obj = payload.get('request', {})
             lead_obj = request_obj.get('lead', {})
-            telefono_real = lead_obj.get('phone', '')
             
-            if telefono_real:
-                # Extrae solo los números, eliminando '+', espacios o guiones
-                telefono = "".join(char for char in telefono_real if char.isdigit())
+            # Purgamos y extraemos ESTRICTAMENTE los dígitos de cualquier rincón del JSON de Tiledesk
+            digits_lead = "".join(c for c in str(lead_obj.get('phone', '')) if c.isdigit())
+            digits_sender = "".join(c for c in str(payload.get('sender', '')) if c.isdigit())
+            digits_requester = "".join(c for c in str(request_obj.get('requester', {}).get('phone', '')) if c.isdigit())
+
+            # Validamos cuál de las tres fuentes capturó el número real de WhatsApp (mínimo 8 dígitos)
+            if len(digits_lead) >= 8:
+                telefono = digits_lead
+            elif len(digits_sender) >= 8:
+                telefono = digits_sender
+            elif len(digits_requester) >= 8:
+                telefono = digits_requester
             else:
-                telefono = payload.get('sender', 'usuario_tiledesk')
+                telefono = "usuario_tiledesk"
         else:
             # Origen: Meta directo
             entry = data.get('entry', [{}])[0]
