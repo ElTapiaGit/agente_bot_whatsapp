@@ -36,6 +36,8 @@ def webhook_verification():
 @app.route('/webhook', methods=['POST'])
 def webhook_receiver():
     data = request.get_json()
+    print(f"DATA COMPLETA: {data}")
+    print("------------------------------------------------\n")
 
     texto_usuario = None
     telefono = None
@@ -49,22 +51,27 @@ def webhook_receiver():
             payload = data.get('payload', {})
             texto_usuario = payload.get('text', '')
 
-            # EXTRACCIÓN JERARQUICA MULTI-CAPA DE SEGURIDAD PARA EL TELÉFONO
+            # Capturamos los diccionarios internos de atributos según la estructura de image_8cc77c.png
             request_obj = data.get('request', {})
+            attributes_obj = payload.get('attributes', {}) or data.get('attributes', {}) or request_obj.get('attributes', {})
             lead_obj = data.get('lead', {}) or request_obj.get('lead', {})
-            
-            # Purgamos y extraemos ESTRICTAMENTE los dígitos de cualquier rincón del JSON de Tiledesk
-            digits_lead = "".join(c for c in str(lead_obj.get('phone', '')) if c.isdigit())
-            digits_sender = "".join(c for c in str(payload.get('sender', '')) if c.isdigit())
-            digits_requester = "".join(c for c in str(request_obj.get('requester', {}).get('phone', '')) if c.isdigit())
 
-            # Validamos cuál de las tres fuentes capturó el número real de WhatsApp (mínimo 8 dígitos)
-            if len(digits_lead) >= 8:
-                telefono = digits_lead
-            elif len(digits_requester) >= 8:
-                telefono = digits_requester
-            elif len(digits_sender) >= 8:
-                telefono = digits_sender
+            # Lista ordenada de prioridades basada en los metadatos reales de Tiledesk
+            posibles_telefonos = [
+                attributes_obj.get('currentPhoneNumber'),
+                attributes_obj.get('userPhone'),
+                data.get('currentPhoneNumber'),
+                lead_obj.get('phone'),
+                payload.get('sender')
+            ]
+
+            # Buscamos el primer dato que contenga los dígitos del teléfono del cliente
+            for p in posibles_telefonos:
+                if p:
+                    digits = "".join(c for c in str(p) if c.isdigit())
+                    if len(digits) >= 8:
+                        telefono = digits
+                        break
             else:
                 telefono = "usuario_tiledesk"
         else:
@@ -79,9 +86,14 @@ def webhook_receiver():
                 if mensaje_obj.get('type') == 'text':
                     texto_usuario = mensaje_obj['text']['body']
 
+        # 🛑 LOG 2: Verificar qué texto y qué teléfono aisló el script
+        print(f"📱 [PROCESAMIENTO] Teléfono detectado: {telefono}")
+        print(f"💬 [PROCESAMIENTO] Texto del usuario: {texto_usuario}")
+
         # Si no se detectó ningún texto válido, cortamos de forma segura
         if not texto_usuario:
-            return jsonify({"status": "no_text"}), 200
+            print("⚠️ [ADVERTENCIA] Petición sin texto válido (Posible evento interno). Retornando payload vacío seguro.")
+            return jsonify({"status": ""}), 200
 
         # 2. LÓGICA DE NEGOCIO UNIFICADA
         control_previo = obtener_control_chat(telefono)
@@ -104,11 +116,15 @@ def webhook_receiver():
             if telefono and telefono.isdigit() and telefono != "usuario_tiledesk":
                 enviar_imagen_whatsapp(telefono, url_qr)
                 print(f"📸 QR Real enviado vía Meta al número verificado: {telefono}")
-                
+            else:
+                print(f"❌ [FALLO MULTIMEDIA] No se envió la imagen. El teléfono no es válido o quedó como: '{telefono}'")
+
         # 5. RESPUESTA SEGÚN EL CANAL ACTIVO (Texto limpio para tu componente de Tiledesk)
         if es_tiledesk:
+            print(f"📤 [RETORNO] Enviando JSON de respuesta a Tiledesk para el usuario: {telefono}")
             return jsonify({"text": respuesta_ia}), 200
         else:
+            print(f"📤 [RETORNO] Enviando mensaje directo a la API de Meta para el usuario: {telefono}")
             enviar_texto_whatsapp(telefono, respuesta_ia)
             return jsonify({"status": "ok"}), 200
 
